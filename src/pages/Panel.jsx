@@ -4,6 +4,7 @@ import Sidebar from '../components/Sidebar'
 import { StatusPill, DayChip, ControlTag } from '../components/StatusBadge'
 import { supabase } from '../lib/supabase'
 import { daysUntil, getStatus, formatDate } from '../lib/dayUtils'
+import { playAlertSound } from '../lib/notify'
 
 export default function Panel() {
   const [controls, setControls] = useState([])
@@ -28,6 +29,14 @@ export default function Panel() {
   const ok = enriched.filter(c => c.status === 'ok').length
   const upcoming = enriched.sort((a, b) => (a.days ?? 9999) - (b.days ?? 9999)).slice(0, 10)
 
+  const alertCount = expired + warning
+
+  // Aviso sonoro una sola vez, al cargar el panel, si hay vencimientos a ≤15 días o ya vencidos.
+  useEffect(() => {
+    if (!loading && alertCount > 0) playAlertSound()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading])
+
   const today = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 
   return (
@@ -43,6 +52,21 @@ export default function Panel() {
             + Nuevo vehículo
           </button>
         </div>
+
+        {/* Aviso de vencimientos */}
+        {!loading && alertCount > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, background: '#FBF0D8', border: '1px solid #E9D199', borderRadius: 12, padding: '14px 18px', marginBottom: 20 }}>
+            <span style={{ fontSize: 22, lineHeight: 1 }}>🔔</span>
+            <div style={{ flex: 1, fontSize: 14, color: '#7A5410' }}>
+              <b>Atención:</b> tienes{' '}
+              {expired > 0 && <b>{expired} vencimiento{expired !== 1 ? 's' : ''} caducado{expired !== 1 ? 's' : ''}</b>}
+              {expired > 0 && warning > 0 && ' y '}
+              {warning > 0 && <b>{warning} próximo{warning !== 1 ? 's' : ''} (≤15 días)</b>}
+              . Revisa la lista de abajo.
+            </div>
+            <button onClick={() => navigate('/controls')} style={{ background: '#E0991C', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Ver vencimientos</button>
+          </div>
+        )}
 
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 export default function Login() {
@@ -72,6 +72,13 @@ export default function Login() {
               {loading ? 'Entrando…' : 'Entrar'}
             </button>
           </form>
+
+          <div style={{ marginTop: 18, textAlign: 'center' }}>
+            <Link to="/forgot-password" style={{ color: 'rgba(255,255,255,.55)', fontSize: 13, textDecoration: 'none' }}>¿Olvidaste tu contraseña?</Link>
+          </div>
+          <div style={{ marginTop: 14, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,.1)', textAlign: 'center', fontSize: 13, color: 'rgba(255,255,255,.55)' }}>
+            ¿Tu empresa aún no tiene cuenta? <Link to="/register" style={{ color: '#7FA8F5', fontWeight: 600, textDecoration: 'none' }}>Crear cuenta</Link>
+          </div>
         </div>
       </div>
     </div>
