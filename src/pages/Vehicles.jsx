@@ -12,8 +12,9 @@ export default function Vehicles() {
   const [filter, setFilter] = useState('Todos')
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
-  const [modal, setModal] = useState(null) // 'add' | vehicle object
+  const [modal, setModal] = useState(null) // 'add'
   const [sel, setSel] = useState(null)
+  const [editVehicle, setEditVehicle] = useState(null)
 
   async function load() {
     const [vRes, cRes] = await Promise.all([
@@ -125,13 +126,13 @@ export default function Vehicles() {
         )}
       </main>
 
-      {sel && <VehicleModal vehicle={sel} controls={controlsFor(sel.id)} onClose={() => setSel(null)} onRefresh={load} />}
-      {modal === 'add' && <VehicleForm onClose={() => setModal(null)} onSaved={load} />}
+      {sel && <VehicleModal vehicle={sel} controls={controlsFor(sel.id)} onClose={() => setSel(null)} onRefresh={load} onEdit={v => { setSel(null); setEditVehicle(v) }} />}
+      {(modal === 'add' || editVehicle) && <VehicleForm vehicle={editVehicle} onClose={() => { setModal(null); setEditVehicle(null) }} onSaved={load} />}
     </div>
   )
 }
 
-function VehicleModal({ vehicle: v, controls, onClose, onRefresh }) {
+function VehicleModal({ vehicle: v, controls, onClose, onRefresh, onEdit }) {
   async function handleDelete() {
     if (!confirm(`¿Eliminar el vehículo ${v.plate}? Se borrarán también sus controles.`)) return
     await supabase.from('vehicles').delete().eq('id', v.id)
@@ -150,9 +151,10 @@ function VehicleModal({ vehicle: v, controls, onClose, onRefresh }) {
               <span style={{ fontSize: 10.5, color: '#5A6678', background: '#EEF1F6', padding: '2px 8px', borderRadius: 5, fontWeight: 600 }}>{v.type}</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => onEdit(v)} style={{ background: '#E7EDFB', color: '#2456C7', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Editar</button>
             <button onClick={handleDelete} style={{ background: '#FBE7E3', color: '#B23A22', border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Eliminar</button>
-            <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid #E5E9F0', background: '#fff', cursor: 'pointer', fontSize: 18, color: '#6C7A8D', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid #E5E9F0', background: '#fff', cursor: 'pointer', fontSize: 18, color: '#6C7A8D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
           </div>
         </div>
 
@@ -199,8 +201,16 @@ function VehicleModal({ vehicle: v, controls, onClose, onRefresh }) {
   )
 }
 
-function VehicleForm({ onClose, onSaved }) {
-  const [form, setForm] = useState({ plate: '', model: '', type: 'Tractora', year: '', km: '', notes: '' })
+function VehicleForm({ vehicle, onClose, onSaved }) {
+  const isEdit = !!vehicle
+  const [form, setForm] = useState({
+    plate: vehicle?.plate || '',
+    model: vehicle?.model || '',
+    type: vehicle?.type || 'Tractora',
+    year: vehicle?.year || '',
+    km: vehicle?.km || '',
+    notes: vehicle?.notes || '',
+  })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
@@ -210,14 +220,17 @@ function VehicleForm({ onClose, onSaved }) {
     e.preventDefault()
     setErr('')
     setSaving(true)
-    const { error } = await supabase.from('vehicles').insert({
+    const payload = {
       plate: form.plate.trim().toUpperCase(),
       model: form.model || null,
       type: form.type,
       year: form.year ? parseInt(form.year) : null,
       km: form.km ? parseInt(form.km) : 0,
       notes: form.notes || null,
-    })
+    }
+    const { error } = isEdit
+      ? await supabase.from('vehicles').update(payload).eq('id', vehicle.id)
+      : await supabase.from('vehicles').insert(payload)
     if (error) { setErr(error.message); setSaving(false); return }
     onSaved()
     onClose()
@@ -227,7 +240,7 @@ function VehicleForm({ onClose, onSaved }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(18,28,44,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 32 }} onClick={onClose}>
       <div style={{ background: '#fff', borderRadius: 16, width: 480, maxWidth: '100%', boxShadow: '0 24px 60px rgba(0,0,0,.25)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #EEF1F6' }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#15202E' }}>Nuevo vehículo</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#15202E' }}>{isEdit ? 'Editar vehículo' : 'Nuevo vehículo'}</h2>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #E5E9F0', background: '#fff', cursor: 'pointer', fontSize: 16, color: '#6C7A8D', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
         <form onSubmit={save} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -248,7 +261,7 @@ function VehicleForm({ onClose, onSaved }) {
           <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 4 }}>
             <button type="button" onClick={onClose} style={{ background: '#F1F4F8', color: '#46566B', border: 'none', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
             <button type="submit" disabled={saving} style={{ background: '#2456C7', color: '#fff', border: 'none', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? .7 : 1 }}>
-              {saving ? 'Guardando…' : 'Guardar'}
+              {saving ? 'Guardando…' : (isEdit ? 'Guardar cambios' : 'Guardar')}
             </button>
           </div>
         </form>
