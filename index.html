@@ -11,11 +11,15 @@
       input, button, select, textarea { font-family: inherit; }
       /* Tarjetas de resumen: 4 en fila en ordenador */
       .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+      /* Ficha del vehículo: 2 columnas en ordenador */
+      .modal-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
       /* En móvil, deja hueco para la barra superior y aprovecha mejor el ancho */
       @media (max-width: 767px) {
         main { padding: 64px 14px 24px !important; }
         /* Tarjetas de 2 en 2 en el móvil */
         .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        /* Ficha del vehículo: una sola columna en el móvil */
+        .modal-2col { grid-template-columns: 1fr; gap: 18px; }
       }
     </style>
   </head>

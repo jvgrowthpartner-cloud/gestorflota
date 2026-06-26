@@ -133,6 +133,19 @@ export default function Vehicles() {
 }
 
 function VehicleModal({ vehicle: v, controls, onClose, onRefresh, onEdit }) {
+  const [docUrls, setDocUrls] = useState({})
+
+  useEffect(() => {
+    const paths = { photo: v.photo_url, ficha: v.ficha_url, permiso: v.permiso_url }
+    const entries = Object.entries(paths).filter(([, p]) => p)
+    if (!entries.length) return
+    let active = true
+    Promise.all(entries.map(([k, p]) =>
+      supabase.storage.from('vehiculos').createSignedUrl(p, 3600).then(r => [k, r.data?.signedUrl])
+    )).then(res => { if (active) setDocUrls(Object.fromEntries(res)) })
+    return () => { active = false }
+  }, [v.id])
+
   async function handleDelete() {
     if (!confirm(`¿Eliminar el vehículo ${v.plate}? Se borrarán también sus controles.`)) return
     await supabase.from('vehicles').delete().eq('id', v.id)
@@ -158,7 +171,7 @@ function VehicleModal({ vehicle: v, controls, onClose, onRefresh, onEdit }) {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, padding: 24 }}>
+        <div className="modal-2col" style={{ padding: 24 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: .6, color: '#94A0B0', textTransform: 'uppercase', marginBottom: 12 }}>Datos del vehículo</div>
             <div style={{ background: '#FAFBFD', border: '1px solid #EEF1F6', borderRadius: 12, padding: '4px 16px' }}>
@@ -175,6 +188,21 @@ function VehicleModal({ vehicle: v, controls, onClose, onRefresh, onEdit }) {
                 </div>
               )}
             </div>
+
+            {(v.photo_url || v.ficha_url || v.permiso_url) && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: .6, color: '#94A0B0', textTransform: 'uppercase', marginBottom: 10 }}>Documentos</div>
+                {v.photo_url && (
+                  docUrls.photo
+                    ? <a href={docUrls.photo} target="_blank" rel="noreferrer"><img src={docUrls.photo} alt="Foto del vehículo" style={{ width: '100%', maxHeight: 190, objectFit: 'cover', borderRadius: 10, border: '1px solid #EEF1F6', display: 'block', marginBottom: 10 }} /></a>
+                    : <div style={{ fontSize: 13, color: '#9AA6B6', marginBottom: 10 }}>Cargando foto…</div>
+                )}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {v.ficha_url && <DocLink label="📄 Ficha técnica" url={docUrls.ficha} />}
+                  {v.permiso_url && <DocLink label="📄 Permiso de circulación" url={docUrls.permiso} />}
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
@@ -211,6 +239,7 @@ function VehicleForm({ vehicle, onClose, onSaved }) {
     km: vehicle?.km || '',
     notes: vehicle?.notes || '',
   })
+  const [files, setFiles] = useState({ photo: null, ficha: null, permiso: null })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
@@ -228,10 +257,28 @@ function VehicleForm({ vehicle, onClose, onSaved }) {
       km: form.km ? parseInt(form.km) : 0,
       notes: form.notes || null,
     }
-    const { error } = isEdit
-      ? await supabase.from('vehicles').update(payload).eq('id', vehicle.id)
-      : await supabase.from('vehicles').insert(payload)
+    // 1. Guardar el vehículo (crear o actualizar) y recuperar id + tenant_id
+    const q = isEdit
+      ? supabase.from('vehicles').update(payload).eq('id', vehicle.id).select().single()
+      : supabase.from('vehicles').insert(payload).select().single()
+    const { data: row, error } = await q
     if (error) { setErr(error.message); setSaving(false); return }
+
+    // 2. Subir los archivos seleccionados y guardar sus rutas
+    const updates = {}
+    for (const key of ['photo', 'ficha', 'permiso']) {
+      const file = files[key]
+      if (!file) continue
+      const ext = (file.name.split('.').pop() || 'dat').toLowerCase()
+      const path = `${row.tenant_id}/${row.id}/${key}_${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('vehiculos').upload(path, file, { upsert: true })
+      if (upErr) { setErr('El vehículo se guardó, pero falló la subida de un archivo: ' + upErr.message); setSaving(false); return }
+      updates[`${key}_url`] = path
+    }
+    if (Object.keys(updates).length) {
+      await supabase.from('vehicles').update(updates).eq('id', row.id)
+    }
+
     onSaved()
     onClose()
   }
@@ -257,6 +304,14 @@ function VehicleForm({ vehicle, onClose, onSaved }) {
             <Field label="Kilómetros" value={form.km} onChange={v => set('km', v)} placeholder="0" type="number" />
           </div>
           <Field label="Notas" value={form.notes} onChange={v => set('notes', v)} placeholder="Observaciones…" />
+
+          <div style={{ borderTop: '1px solid #EEF1F6', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: .5, color: '#94A0B0', textTransform: 'uppercase' }}>Documentos (opcional)</div>
+            <FileField label="Foto del vehículo" accept="image/*" existing={isEdit && !!vehicle.photo_url} onPick={f => setFiles(s => ({ ...s, photo: f }))} />
+            <FileField label="Ficha técnica" accept="image/*,application/pdf" existing={isEdit && !!vehicle.ficha_url} onPick={f => setFiles(s => ({ ...s, ficha: f }))} hint="Foto o PDF" />
+            <FileField label="Permiso de circulación" accept="image/*,application/pdf" existing={isEdit && !!vehicle.permiso_url} onPick={f => setFiles(s => ({ ...s, permiso: f }))} hint="Foto o PDF" />
+          </div>
+
           {err && <div style={{ background: '#FBE7E3', color: '#B23A22', borderRadius: 8, padding: '10px 14px', fontSize: 13 }}>{err}</div>}
           <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 4 }}>
             <button type="button" onClick={onClose} style={{ background: '#F1F4F8', color: '#46566B', border: 'none', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
@@ -280,5 +335,23 @@ function Field({ label, value, onChange, placeholder, type = 'text', required })
       <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} required={required}
         style={inputStyle} />
     </div>
+  )
+}
+
+function FileField({ label, accept, existing, onPick, hint }) {
+  return (
+    <div>
+      <label style={labelStyle}>{label}</label>
+      {existing && <div style={{ fontSize: 11.5, color: '#1A7A53', marginBottom: 6 }}>✓ Ya hay un archivo subido — elige otro para reemplazarlo</div>}
+      <input type="file" accept={accept} onChange={e => onPick(e.target.files?.[0] || null)} style={{ width: '100%', fontSize: 12.5, color: '#46566B' }} />
+      {hint && <div style={{ fontSize: 11, color: '#9AA6B6', marginTop: 4 }}>{hint}</div>}
+    </div>
+  )
+}
+
+function DocLink({ label, url }) {
+  if (!url) return <span style={{ fontSize: 13, color: '#9AA6B6' }}>Cargando…</span>
+  return (
+    <a href={url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#2456C7', fontWeight: 600, textDecoration: 'none', background: '#E7EDFB', padding: '9px 13px', borderRadius: 8 }}>{label}</a>
   )
 }
