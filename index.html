@@ -9,9 +9,13 @@
       *, *::before, *::after { box-sizing: border-box; }
       body { margin: 0; font-family: 'IBM Plex Sans', sans-serif; -webkit-font-smoothing: antialiased; background: #F5F7FA; }
       input, button, select, textarea { font-family: inherit; }
+      /* Tarjetas de resumen: 4 en fila en ordenador */
+      .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
       /* En móvil, deja hueco para la barra superior y aprovecha mejor el ancho */
       @media (max-width: 767px) {
         main { padding: 64px 14px 24px !important; }
+        /* Tarjetas de 2 en 2 en el móvil */
+        .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
       }
     </style>
   </head>

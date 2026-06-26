@@ -69,7 +69,7 @@ export default function Panel() {
         )}
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
+        <div className="stat-grid" style={{ marginBottom: 24 }}>
           <StatCard label="Vehículos" value={loading ? '…' : vehicles.length} sub="en flota" dotColor="#C3CCD8" bg="#fff" fg="#15202E" />
           <StatCard label="Vencidos" value={loading ? '…' : expired} sub="Requieren acción inmediata" dotColor="#D4452E" bg="#FCF1EF" fg="#B23A22" border="#F3DAD4" />
           <StatCard label="Próximos 15 d" value={loading ? '…' : warning} sub="Planificar revisión" dotColor="#E0991C" bg="#FBF6E9" fg="#8A5B10" border="#EFE3C4" />
