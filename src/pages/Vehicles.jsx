@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import Sidebar from '../components/Sidebar'
+import ControlForm from '../components/ControlForm'
 import { StatusPill, ControlTag, DayChip } from '../components/StatusBadge'
 import { supabase } from '../lib/supabase'
 import { daysUntil, getStatus, statusColors, formatDate } from '../lib/dayUtils'
@@ -134,6 +135,7 @@ export default function Vehicles() {
 
 function VehicleModal({ vehicle: v, controls, onClose, onRefresh, onEdit }) {
   const [docUrls, setDocUrls] = useState({})
+  const [addingControl, setAddingControl] = useState(false)
 
   useEffect(() => {
     const paths = { photo: v.photo_url, ficha: v.ficha_url, permiso: v.permiso_url }
@@ -206,9 +208,12 @@ function VehicleModal({ vehicle: v, controls, onClose, onRefresh, onEdit }) {
           </div>
 
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: .6, color: '#94A0B0', textTransform: 'uppercase', marginBottom: 12 }}>Controles y vencimientos</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: .6, color: '#94A0B0', textTransform: 'uppercase' }}>Controles y vencimientos</div>
+              <button onClick={() => setAddingControl(true)} style={{ background: '#E7EDFB', color: '#2456C7', border: 'none', borderRadius: 7, padding: '6px 11px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ Añadir ITV / tacógrafo…</button>
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {controls.length === 0 && <p style={{ margin: 0, fontSize: 13, color: '#8A98A8' }}>Sin controles registrados.</p>}
+              {controls.length === 0 && <p style={{ margin: 0, fontSize: 13, color: '#8A98A8' }}>Sin controles registrados. Pulsa "+ Añadir" para poner la fecha de la ITV, el tacógrafo, etc.</p>}
               {controls.map(c => (
                 <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#fff', border: '1px solid #EEF1F6', borderRadius: 10, padding: '11px 13px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -223,6 +228,14 @@ function VehicleModal({ vehicle: v, controls, onClose, onRefresh, onEdit }) {
               ))}
             </div>
           </div>
+
+          {addingControl && (
+            <ControlForm
+              vehicles={[v]}
+              onClose={() => setAddingControl(false)}
+              onSaved={() => { setAddingControl(false); onRefresh() }}
+            />
+          )}
         </div>
       </div>
     </div>
