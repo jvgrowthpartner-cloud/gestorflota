@@ -3,8 +3,16 @@ import { supabase } from '../lib/supabase'
 
 const CONTROL_NAMES = { ITV: 'Inspección técnica', TAC: 'Tacógrafo', ACE: 'Aceite y filtros', REV: 'Revisión general' }
 
-export default function ControlForm({ vehicles, onClose, onSaved }) {
-  const [form, setForm] = useState({ vehicle_id: vehicles[0]?.id || '', type: 'ITV', name: 'Inspección técnica', due_date: '', alert_days: '15', notes: '' })
+export default function ControlForm({ vehicles, control, onClose, onSaved }) {
+  const isEdit = !!control
+  const [form, setForm] = useState(control ? {
+    vehicle_id: control.vehicle_id,
+    type: control.type,
+    name: control.name || '',
+    due_date: control.due_date || '',
+    alert_days: String(control.alert_days ?? 15),
+    notes: control.notes || '',
+  } : { vehicle_id: vehicles[0]?.id || '', type: 'ITV', name: 'Inspección técnica', due_date: '', alert_days: '15', notes: '' })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
@@ -17,14 +25,17 @@ export default function ControlForm({ vehicles, onClose, onSaved }) {
     setSaving(true)
     const veh = vehicles.find(v => v.id === form.vehicle_id)
     if (!veh) { setErr('Selecciona un vehículo.'); setSaving(false); return }
-    const { error } = await supabase.from('controls').insert({
+    const payload = {
       vehicle_id: form.vehicle_id,
       type: form.type,
       name: form.name,
       due_date: form.due_date || null,
       alert_days: parseInt(form.alert_days) || 15,
       notes: form.notes || null,
-    })
+    }
+    const { error } = isEdit
+      ? await supabase.from('controls').update(payload).eq('id', control.id)
+      : await supabase.from('controls').insert(payload)
     if (error) { setErr(error.message); setSaving(false); return }
     onSaved()
     onClose()
@@ -37,7 +48,7 @@ export default function ControlForm({ vehicles, onClose, onSaved }) {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(18,28,44,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60, padding: 32 }} onClick={onClose}>
       <div style={{ background: '#fff', borderRadius: 16, width: 480, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,.25)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #EEF1F6' }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#15202E' }}>Nuevo vencimiento</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#15202E' }}>{isEdit ? 'Editar vencimiento' : 'Nuevo vencimiento'}</h2>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #E5E9F0', background: '#fff', cursor: 'pointer', fontSize: 16, color: '#6C7A8D', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
         <form onSubmit={save} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -78,7 +89,7 @@ export default function ControlForm({ vehicles, onClose, onSaved }) {
           <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 4 }}>
             <button type="button" onClick={onClose} style={{ background: '#F1F4F8', color: '#46566B', border: 'none', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
             <button type="submit" disabled={saving} style={{ background: '#2456C7', color: '#fff', border: 'none', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? .7 : 1 }}>
-              {saving ? 'Guardando…' : 'Guardar'}
+              {saving ? 'Guardando…' : (isEdit ? 'Guardar cambios' : 'Guardar')}
             </button>
           </div>
         </form>

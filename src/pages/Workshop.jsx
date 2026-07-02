@@ -2,12 +2,22 @@ import { useState, useEffect } from 'react'
 import Sidebar from '../components/Sidebar'
 import { supabase } from '../lib/supabase'
 import { formatDate } from '../lib/dayUtils'
+import { useIsMobile } from '../lib/useIsMobile'
+
+const actBtn = (bg, fg) => ({ background: bg, color: fg, border: 'none', borderRadius: 7, padding: '6px 11px', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' })
+const GRID = '1.4fr 1.8fr 1fr 0.9fr 0.9fr 150px'
+
+function eur(v) {
+  return v ? v.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) : '—'
+}
 
 export default function Workshop() {
   const [events, setEvents] = useState([])
   const [vehicles, setVehicles] = useState([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
+  const [editEvent, setEditEvent] = useState(null)
+  const isMobile = useIsMobile()
 
   async function load() {
     const [eRes, vRes] = await Promise.all([
@@ -21,11 +31,26 @@ export default function Workshop() {
 
   useEffect(() => { load() }, [])
 
+  async function deleteEvent(ev) {
+    if (!confirm(`¿Borrar esta intervención de ${ev.vehicles?.plate || 'este vehículo'}?`)) return
+    await supabase.from('workshop_events').delete().eq('id', ev.id)
+    load()
+  }
+
+  function renderActions(ev) {
+    return (
+      <div style={{ display: 'flex', gap: 6, justifyContent: isMobile ? 'flex-start' : 'flex-end', flexWrap: 'wrap' }}>
+        <button onClick={() => setEditEvent(ev)} title="Editar" style={actBtn('#E7EDFB', '#2456C7')}>Editar</button>
+        <button onClick={() => deleteEvent(ev)} title="Borrar" style={actBtn('#FBE7E3', '#B23A22')}>Borrar</button>
+      </div>
+    )
+  }
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F5F7FA' }}>
       <Sidebar />
       <main style={{ flex: 1, padding: '28px 32px', overflow: 'auto' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, gap: 12, flexWrap: 'wrap' }}>
           <div>
             <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: '#15202E', letterSpacing: '-.2px' }}>Taller</h1>
             <div style={{ color: '#6C7A8D', fontSize: 13, marginTop: 3 }}>Historial de revisiones y reparaciones</div>
@@ -33,41 +58,72 @@ export default function Workshop() {
           <button onClick={() => setModal(true)} style={{ background: '#2456C7', color: '#fff', border: 'none', borderRadius: 9, padding: '10px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Nueva intervención</button>
         </div>
 
-        <div style={{ background: '#fff', border: '1px solid #E9EDF3', borderRadius: 14, overflow: 'hidden' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 1fr 1fr', gap: 8, padding: '10px 20px', background: '#FAFBFD', borderBottom: '1px solid #EEF1F6' }}>
-            {['Vehículo','Descripción','Taller','Coste','Fecha'].map((h, i) => (
-              <span key={i} style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: .5, color: '#94A0B0', textTransform: 'uppercase' }}>{h}</span>
+        {loading ? (
+          <div style={{ padding: 32, textAlign: 'center', color: '#8A98A8' }}>Cargando…</div>
+        ) : events.length === 0 ? (
+          <div style={{ padding: 32, textAlign: 'center', color: '#8A98A8', fontSize: 14 }}>No hay intervenciones registradas todavía.</div>
+        ) : isMobile ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {events.map(ev => (
+              <div key={ev.id} style={{ background: '#fff', border: '1px solid #E9EDF3', borderRadius: 12, padding: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                  <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 15, fontWeight: 700, color: '#15202E' }}>{ev.vehicles?.plate}</div>
+                  <span style={{ fontSize: 12.5, color: '#6C7A8D' }}>{formatDate(ev.event_date)}</span>
+                </div>
+                <div style={{ fontSize: 14, color: '#33425A', marginBottom: 6 }}>{ev.description}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12.5, color: '#6C7A8D', marginBottom: 12 }}>
+                  <span>🔧 {ev.workshop || '—'}</span>
+                  <span style={{ fontFamily: "'IBM Plex Mono',monospace", fontWeight: 600, color: ev.cost_eur ? '#15202E' : '#C3CCD8' }}>{eur(ev.cost_eur)}</span>
+                </div>
+                {renderActions(ev)}
+              </div>
             ))}
           </div>
-
-          {loading ? (
-            <div style={{ padding: 32, textAlign: 'center', color: '#8A98A8' }}>Cargando…</div>
-          ) : events.length === 0 ? (
-            <div style={{ padding: 32, textAlign: 'center', color: '#8A98A8', fontSize: 14 }}>No hay intervenciones registradas todavía.</div>
-          ) : events.map(ev => (
-            <div key={ev.id} style={{ display: 'grid', gridTemplateColumns: '1.5fr 2fr 1fr 1fr 1fr', gap: 8, padding: '13px 20px', alignItems: 'center', borderBottom: '1px solid #F2F5F9' }}>
-              <div>
-                <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13.5, fontWeight: 700, color: '#15202E' }}>{ev.vehicles?.plate}</div>
-                <div style={{ fontSize: 11.5, color: '#8A98A8', marginTop: 2 }}>{ev.vehicles?.model}</div>
-              </div>
-              <span style={{ fontSize: 13, color: '#33425A' }}>{ev.description}</span>
-              <span style={{ fontSize: 13, color: '#46566B' }}>{ev.workshop || '—'}</span>
-              <span style={{ fontSize: 13, fontFamily: "'IBM Plex Mono',monospace", color: ev.cost_eur ? '#15202E' : '#C3CCD8', fontWeight: ev.cost_eur ? 600 : 400 }}>
-                {ev.cost_eur ? ev.cost_eur.toLocaleString('es-ES', { style: 'currency', currency: 'EUR' }) : '—'}
-              </span>
-              <span style={{ fontSize: 13, color: '#46566B' }}>{formatDate(ev.event_date)}</span>
+        ) : (
+          <div style={{ background: '#fff', border: '1px solid #E9EDF3', borderRadius: 14, overflow: 'hidden' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: GRID, gap: 8, padding: '10px 20px', background: '#FAFBFD', borderBottom: '1px solid #EEF1F6' }}>
+              {['Vehículo','Descripción','Taller','Coste','Fecha',''].map((h, i) => (
+                <span key={i} style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: .5, color: '#94A0B0', textTransform: 'uppercase' }}>{h}</span>
+              ))}
             </div>
-          ))}
-        </div>
+            {events.map(ev => (
+              <div key={ev.id} style={{ display: 'grid', gridTemplateColumns: GRID, gap: 8, padding: '13px 20px', alignItems: 'center', borderBottom: '1px solid #F2F5F9' }}>
+                <div>
+                  <div style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 13.5, fontWeight: 700, color: '#15202E' }}>{ev.vehicles?.plate}</div>
+                  <div style={{ fontSize: 11.5, color: '#8A98A8', marginTop: 2 }}>{ev.vehicles?.model}</div>
+                </div>
+                <span style={{ fontSize: 13, color: '#33425A' }}>{ev.description}</span>
+                <span style={{ fontSize: 13, color: '#46566B' }}>{ev.workshop || '—'}</span>
+                <span style={{ fontSize: 13, fontFamily: "'IBM Plex Mono',monospace", color: ev.cost_eur ? '#15202E' : '#C3CCD8', fontWeight: ev.cost_eur ? 600 : 400 }}>{eur(ev.cost_eur)}</span>
+                <span style={{ fontSize: 13, color: '#46566B' }}>{formatDate(ev.event_date)}</span>
+                {renderActions(ev)}
+              </div>
+            ))}
+          </div>
+        )}
       </main>
 
-      {modal && <WorkshopForm vehicles={vehicles} onClose={() => setModal(false)} onSaved={load} />}
+      {(modal || editEvent) && (
+        <WorkshopForm
+          vehicles={vehicles}
+          event={editEvent}
+          onClose={() => { setModal(false); setEditEvent(null) }}
+          onSaved={load}
+        />
+      )}
     </div>
   )
 }
 
-function WorkshopForm({ vehicles, onClose, onSaved }) {
-  const [form, setForm] = useState({ vehicle_id: vehicles[0]?.id || '', description: '', workshop: '', cost_eur: '', event_date: new Date().toISOString().slice(0, 10) })
+function WorkshopForm({ vehicles, event, onClose, onSaved }) {
+  const isEdit = !!event
+  const [form, setForm] = useState(event ? {
+    vehicle_id: event.vehicle_id,
+    description: event.description || '',
+    workshop: event.workshop || '',
+    cost_eur: event.cost_eur ?? '',
+    event_date: event.event_date || new Date().toISOString().slice(0, 10),
+  } : { vehicle_id: vehicles[0]?.id || '', description: '', workshop: '', cost_eur: '', event_date: new Date().toISOString().slice(0, 10) })
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
 
@@ -77,13 +133,16 @@ function WorkshopForm({ vehicles, onClose, onSaved }) {
     e.preventDefault()
     setErr('')
     setSaving(true)
-    const { error } = await supabase.from('workshop_events').insert({
+    const payload = {
       vehicle_id: form.vehicle_id,
       description: form.description,
       workshop: form.workshop || null,
       cost_eur: form.cost_eur ? parseFloat(form.cost_eur) : null,
       event_date: form.event_date,
-    })
+    }
+    const { error } = isEdit
+      ? await supabase.from('workshop_events').update(payload).eq('id', event.id)
+      : await supabase.from('workshop_events').insert(payload)
     if (error) { setErr(error.message); setSaving(false); return }
     onSaved()
     onClose()
@@ -94,9 +153,9 @@ function WorkshopForm({ vehicles, onClose, onSaved }) {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(18,28,44,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 32 }} onClick={onClose}>
-      <div style={{ background: '#fff', borderRadius: 16, width: 480, maxWidth: '100%', boxShadow: '0 24px 60px rgba(0,0,0,.25)' }} onClick={e => e.stopPropagation()}>
+      <div style={{ background: '#fff', borderRadius: 16, width: 480, maxWidth: '100%', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,.25)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '20px 24px', borderBottom: '1px solid #EEF1F6' }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#15202E' }}>Nueva intervención</h2>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#15202E' }}>{isEdit ? 'Editar intervención' : 'Nueva intervención'}</h2>
           <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #E5E9F0', background: '#fff', cursor: 'pointer', fontSize: 16, color: '#6C7A8D', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
         </div>
         <form onSubmit={save} style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -128,7 +187,7 @@ function WorkshopForm({ vehicles, onClose, onSaved }) {
           <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', marginTop: 4 }}>
             <button type="button" onClick={onClose} style={{ background: '#F1F4F8', color: '#46566B', border: 'none', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
             <button type="submit" disabled={saving} style={{ background: '#2456C7', color: '#fff', border: 'none', borderRadius: 9, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? .7 : 1 }}>
-              {saving ? 'Guardando…' : 'Guardar'}
+              {saving ? 'Guardando…' : (isEdit ? 'Guardar cambios' : 'Guardar')}
             </button>
           </div>
         </form>

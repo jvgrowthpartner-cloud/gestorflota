@@ -34,7 +34,11 @@ export default function Register() {
     setLoading(false)
 
     if (error) {
-      setError(error.message.includes('already registered') ? 'Ese email ya tiene una cuenta.' : 'No se pudo crear la cuenta: ' + error.message)
+      const msg = String(error.message || '').toLowerCase()
+      if (msg.includes('already registered') || msg.includes('already been registered')) setError('Ese email ya tiene una cuenta. Prueba a acceder o a recuperar tu contraseña.')
+      else if (msg.includes('password')) setError('La contraseña no es válida (mínimo 6 caracteres).')
+      else if (msg.includes('email')) setError('Revisa que el email esté bien escrito.')
+      else setError('No se pudo crear la cuenta. Inténtalo de nuevo en un momento.')
       return
     }
     // Si el proyecto exige confirmar email, no habrá sesión todavía.
